@@ -1,0 +1,175 @@
+07-JULY-2019 Matthew J. Wolf Email: matthew.wolf at speciosus.net
+
+Linux daemon program that uses the Linux kernels Industrial I/O 
+subsystem (IIO) to get data from temperature, humidity, and pressure 
+sensors. The sensor data is output via a pseudo-terminal in the Peet Bros.
+ULTIMETER serial data format[1].
+
+This Daemon Uses IIO Kernel Modules
+-----------------------------------
+ chipcap2 = Amphenol / Telaire ChipCap 2 humidity and temperature sensor, [2]. 
+ mpl3115  = Freescale MPL3115A2 pressure and temperature sensor, included in 
+            Linux kernel source tree.
+
+Program Run Time Options and Defaults
+----------------------------
+-d Debug
+	Does not demonize and displays message.
+-l      File system location of symlink to pseudo-terminal
+          Default: /tmp/weather-sensors-serial
+--help  Display the program usage details
+	
+Required Libraries
+------------------
+Core C library
+libiio = Linux Industrial I/O 
+- Linux distribution package
+  or 
+  https://github.com/analogdevicesinc/libiio
+
+Change Log
+----------
+
+Version 3.0.0:
+  - Initial public version.
+  - Complete rewrite.
+  - Bmp180 replaced with mpl3115.
+  - Replaced i2c dev interface with IIO drivers.
+  - Acquisition of sensor data moved to the kernel.
+  - Removed the required use of socat.
+  - Changed program to being a daemon process. 
+
+Why Did I Create This Program
+------------------------------
+ 
+I discovered that the pressure sensor, bmp180, I was using for my Automatic
+Packet Reporting System (APRS) weather station had failed, [3]. I all ready
+had a replacement pressure sensor, mpl3115. 
+
+The APRS weather station was using a chipcap2 humidity and temperature
+sensor.
+
+I decided that since the pressure sensor had to be replaced. It was time to
+a replace of the program that acquired then formatted the output data.
+
+Old Design
+----------
+
+The old program is quick and dirty DIY programming. It acquired all the sensor
+data via user space by utilizing the Linux i2c dev interface, [4]. I knew I 
+could do better then DIY. I can create a Unix system programs. 
+
+The end user of the sensor data is the Xastir APRS client, [5]. The weather
+data needs to transmitted via serial RS-232 data. The old program utilized a 
+virtual serial comprised of a pair of "socat" created pseudo-terminals. The
+weather program output the Peet Bros. formatted data to the file descriptor 
+of one of the pseudo-terminals. Xastir listened on the other pseudo-terminal.
+
+The data flow of the old program:
+ 
+old_weather_program -> socat -> Xastir (APRS client)
+
+New Design
+----------
+
+There is no need to use the "socat" utility. A Unix process can open
+pseudo-terminals. The new program opens one pseudo-terminal. The Xastir
+APRS client connects to the pseudo-terminal and receives Peet Bros. 
+formatted data. 
+
+I discovered that there is a IIO driver for the mpl3115 sensor in the 
+Linux kernel source tree. I created a IIO driver for the chipcap2
+sensor. All of the weather sensors have IIO drivers. There is no need to 
+acquired the raw sensor data in user space. The kernel can acquire the data.
+
+The new program asks kernel for the sensor data. The data then is printed to
+the pseudo-terminal's file descriptor. 
+
+The program has a better algorithm. The acquisition of the data has moved from
+the program to the operating system.  
+
+The new program can be viewed as second system. New functionally has been
+added. The program is a Unix daemon. 
+
+The data flow of the new program:
+ 
+new_weather_program -> Xastir (APRS client)
+
+Compile
+-------
+
+1. Run GNU make.
+
+  make
+
+Install
+-------
+
+1. Copy to system directory.
+
+   sudo cp weather-sensors weather-sensors
+
+2. Create directory for PID file.
+
+   sudo mkdir -p weather-sensors
+
+3. Create systemd configuration directory. 
+
+   sudo	/usr/local/lib/systemd/system
+
+4. Copy systemd service file. 
+
+   sudo cp systemd/weather-sensors.service /usr/local/lib/systemd/system
+
+5. Enable weather-sensors service.
+
+   systemd enable weather-sensors
+
+6. Start weather-sensors service.
+
+   systemd start weather-sensors
+
+7. Configure Xastir "WX Port" interface to use the symlink to the
+   pseudo-terminal.
+
+   The default file system symlink for the pseudo-terminal is: 
+   /tmp/weather-sensors-serial  
+
+   The RS-232 parameters are hard coded in the program. The parameters
+   are listed below.
+
+   Baud Rate : 9600 bps
+   Data Bits : 8
+   Parity Bit: N
+   Stop Bit  : 1
+
+References
+----------
+
+[1] Home Weather Stations : Weather Observation Equipment :
+    ULTIMETER Weather Stations Reviews. 
+    [Online]. 
+    Available: https://www.peetbros.com/shop/custom.aspx?recid=29.
+    [Accessed: 08-Jul-2019]. 
+
+[2] matthew-wolf-n4mtt, “matthew-wolf-n4mtt/chipcap2-linux-iio-module,” GitHub.
+    [Online]. 
+    Available: https://github.com/matthew-wolf-n4mtt/chipcap2-linux-iio-module.
+    [Accessed: 08-Jul-2019]. 
+
+[3] B. Bruninga, “Automatic Packet Reporting System,” APRS. 
+    [Online]. 
+    Available: http://www.aprs.org/.
+    [Accessed: 08-Jul-2019]. 
+
+[4] The Linux Kernel Archives.
+    [Online].
+    Available: https://www.kernel.org/doc/Documentation/i2c/dev-interface.
+    [Accessed: 08-Jul-2019]. 
+
+[5] “Main Page,” XastirWiki. 
+    [Online]. 
+    Available: https://xastir.org/index.php/Main_Page.
+    [Accessed: 08-Jul-2019]. 
+
+

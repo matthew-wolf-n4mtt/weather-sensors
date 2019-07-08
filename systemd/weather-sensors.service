@@ -1,0 +1,14 @@
+[Unit]
+Description=IIO weather-sensors serial data
+
+[Service]
+Type=forking
+PIDFile=/usr/local/var/run/weather-sensors.pid
+ExecStart=/usr/local/sbin/weather-sensors
+ExecReload=/bin/kill -TERM $MAINPID
+ExecStop=/bin/kill -TERM $MAINPID
+KillMode=process
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
